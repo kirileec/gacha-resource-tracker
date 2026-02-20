@@ -1,0 +1,13 @@
+services:
+  app:
+    image: slk1133/gacha-tracker:latest
+    container_name: gacha-tracker
+    ports:
+      - "7001:7001"
+    volumes:
+      # Persist database
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+      - NODE_ENV=production
+    restart: unless-stopped
