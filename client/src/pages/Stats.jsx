@@ -15,10 +15,15 @@ function Stats() {
 
   useEffect(() => {
     loadGames();
+    const savedGameId = localStorage.getItem('selectedGameId');
+    if (savedGameId) {
+      setSelectedGame(savedGameId);
+    }
   }, []);
 
   useEffect(() => {
     if (selectedGame) {
+      localStorage.setItem('selectedGameId', selectedGame);
       loadVersions();
       loadCurrentStats();
     }
