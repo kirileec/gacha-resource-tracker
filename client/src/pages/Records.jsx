@@ -1,6 +1,31 @@
 import { useState, useEffect } from 'react';
-import { gameAPI, resourceAPI, versionAPI, recordAPI, statsAPI } from '../services/api';
+import { gameAPI, resourceAPI, versionAPI, recordAPI } from '../services/api';
 import '../styles/App.css';
+
+const getLocalDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getVersionForDate = (availableVersions, date) =>
+  availableVersions.reduce((currentVersion, version) => {
+    if (
+      !version.start_date
+      || version.start_date > date
+      || (version.end_date && version.end_date < date)
+    ) {
+      return currentVersion;
+    }
+
+    if (!currentVersion || version.start_date > currentVersion.start_date) {
+      return version;
+    }
+
+    return currentVersion;
+  }, null);
 
 function Records() {
   const [records, setRecords] = useState([]);
@@ -14,7 +39,7 @@ function Records() {
   const [formData, setFormData] = useState({
     game_id: '',
     version_id: '',
-    record_date: new Date().toISOString().split('T')[0],
+    record_date: getLocalDateString(),
     垫数: 0,
     values: [],
   });
@@ -58,8 +83,10 @@ function Records() {
     try {
       const response = await versionAPI.getAll({ game_id: selectedGame });
       setVersions(response.data);
+      return response.data;
     } catch (error) {
       console.error('加载版本失败:', error);
+      return [];
     }
   };
 
@@ -78,7 +105,7 @@ function Records() {
     setFormData({
       game_id: gameId,
       version_id: '',
-      record_date: new Date().toISOString().split('T')[0],
+      record_date: getLocalDateString(),
       垫数: 0,
       values: [],
     });
@@ -92,6 +119,9 @@ function Records() {
     setEditingRecord(null);
     setViewingRecord(null);
     
+    const currentDate = getLocalDateString();
+    const availableVersions = await loadVersions();
+    const currentVersion = getVersionForDate(availableVersions, currentDate);
     let defaultValues = [];
     let default垫数 = 0;
     
@@ -107,8 +137,8 @@ function Records() {
     
     setFormData({
       game_id: selectedGame,
-      version_id: versions.length > 0 ? versions[0].id : '',
-      record_date: new Date().toISOString().split('T')[0],
+      version_id: currentVersion?.id || '',
+      record_date: currentDate,
       垫数: default垫数,
       values: defaultValues,
     });
@@ -177,8 +207,8 @@ function Records() {
       setEditingRecord(null);
       setFormData({
         game_id: selectedGame,
-        version_id: versions.length > 0 ? versions[0].id : '',
-        record_date: new Date().toISOString().split('T')[0],
+        version_id: getVersionForDate(versions, getLocalDateString())?.id || '',
+        record_date: getLocalDateString(),
         垫数: 0,
         values: [],
       });

@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { gameAPI, versionAPI, statsAPI } from '../services/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import '../styles/App.css';
+
+const DAYS_IN_CHART_VIEW = 30;
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+const formatChartDate = (timestamp) => new Date(timestamp).toISOString().split('T')[0];
 
 function Stats() {
   const [games, setGames] = useState([]);
@@ -12,6 +17,22 @@ function Stats() {
   const [endDate, setEndDate] = useState('');
   const [chartData, setChartData] = useState([]);
   const [currentStats, setCurrentStats] = useState(null);
+  const chartScrollRef = useRef(null);
+
+  const trendChartData = useMemo(
+    () => chartData.map((item) => ({ ...item, timestamp: Date.parse(`${item.date}T00:00:00Z`) })),
+    [chartData],
+  );
+
+  const chartWidthPercent = useMemo(() => {
+    if (selectedVersion || trendChartData.length < 2) {
+      return 100;
+    }
+
+    const timestamps = trendChartData.map((item) => item.timestamp);
+    const dateSpanInDays = (Math.max(...timestamps) - Math.min(...timestamps)) / MILLISECONDS_PER_DAY;
+    return Math.max(100, Math.ceil((dateSpanInDays / DAYS_IN_CHART_VIEW) * 100));
+  }, [selectedVersion, trendChartData]);
 
   useEffect(() => {
     loadGames();
@@ -34,6 +55,21 @@ function Stats() {
       loadChartData();
     }
   }, [selectedGame, selectedVersion, startDate, endDate]);
+
+  useEffect(() => {
+    if (selectedVersion || !chartScrollRef.current) {
+      return undefined;
+    }
+
+    const animationFrame = requestAnimationFrame(() => {
+      const scrollContainer = chartScrollRef.current;
+      if (scrollContainer) {
+        scrollContainer.scrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+      }
+    });
+
+    return () => cancelAnimationFrame(animationFrame);
+  }, [chartWidthPercent, selectedVersion, trendChartData]);
 
   const loadGames = async () => {
     try {
@@ -164,22 +200,35 @@ function Stats() {
           <div className="card-header">
             <h3>抽数变化趋势</h3>
           </div>
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="pulls"
-                stroke="#667eea"
-                strokeWidth={2}
-                name="当前抽数"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <div className="trend-chart-scroll" ref={chartScrollRef}>
+            <div
+              className="trend-chart-content"
+              style={{ width: `${chartWidthPercent}%` }}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="timestamp"
+                    type="number"
+                    scale="time"
+                    domain={['dataMin', 'dataMax']}
+                    tickFormatter={formatChartDate}
+                  />
+                  <YAxis />
+                  <Tooltip labelFormatter={formatChartDate} />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="pulls"
+                    stroke="#667eea"
+                    strokeWidth={2}
+                    name="当前抽数"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
       )}
     </div>
